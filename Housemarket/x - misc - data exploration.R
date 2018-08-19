@@ -1,9 +1,6 @@
 ## Data exploration
 ## Goal of the script : Understand the relation between variables
 
-
-
-
 org_list<-ls()
 houseprice_data <- fread("Housemarket/data/kaggle_house_training_data.csv")
 
