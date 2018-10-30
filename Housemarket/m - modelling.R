@@ -2,8 +2,9 @@
 ## 
 
 
+
 modelled_dataset <- function(house){
-  h2o.init()
+  #h2o.init()
 house[,id := .I]
 
 ##recode askingprice  ##
@@ -65,3 +66,8 @@ return(output_house)
 h2o.shutdown()
 }
 
+
+map_data <- function(house){
+  
+  return(house)
+}

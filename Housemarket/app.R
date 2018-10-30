@@ -42,7 +42,8 @@ getColor <- function(x) {
 
 source("x - widget.R")
 source("m - modelling.R")
-source("f - webscrap.R")
+#source("f - webscrap.R")
+
 
 ## Get the directory
 nl <- getwd()
@@ -55,20 +56,22 @@ names(r_colors) <- colors()
 
 ui <- dashboardPage(
   dashboardHeader(title = "Home Price Project"),
-  dashboardSidebar(sidebarMenu(menuItem("Maps", tabName = "maps", icon = icon("dashboard")),
-                               menuItem("Table", tabName = "table", icon = icon("th")),
-                               menuItem("Funda", tabName = "funda"))),
+  dashboardSidebar(sidebarMenu(menuItem("Table", tabName = "table", icon = icon("dashboard")),
+                               menuItem("Maps", tabName = "maps", icon = icon("th")),
+                               menuItem("Variable Selection", tabName = "var"))),
 
   
   dashboardBody(
     tabItems(
      
-      tabItem(tabName = "maps",
+      tabItem(tabName = "table",
                      fluidRow(
                    
                        box(
-                       radioButtons("import", "Select which type of data source:", 
-                                    choices = c("Webscrap", "File upload")),
+                         selectInput(
+                           "import", "Select which type of data source:",
+                           c(Webscrap = "Webscrap",
+                             UploadData = "File upload"),selected = c('UploadData')),
                        wellPanel(
                        conditionalPanel(condition = "input.import == 'Webscrap'",
                                         
@@ -82,19 +85,18 @@ ui <- dashboardPage(
                        actionButton("map_show", "Show points on the map")
                        ))),
                      fluidRow(
-                       withSpinner(leafletOutput(outputId = "mymap"), type = 8)
+                       withSpinner(dataTableOutput("table"), type = 8)
                      )),
-      tabItem(tabName = "funda", 
-             # source("w - widget.R")
-             # tags$iframe(src = "http://www.bbc.co.uk")
-             a <- HTML(readLines(
-               "https://www.funda.nl/en/koop/rotterdam/"
-             ))
+      tabItem(tabName = "var",
+              fluidRow(uiOutput("selection_data"),
+              actionButton("run_model", "Run Model with selected variable")),
+              fluidRow(withSpinner(dataTableOutput("table_model"), type = 8))
+             
              ),
-                      
+      
 
-             tabItem(tabName = "table",
-                        dataTableOutput("table")))
+             tabItem(tabName = "maps",
+                     leafletOutput(outputId = "mymap")))
  
   
 ))
@@ -107,7 +109,7 @@ server <- function(input, output, session) {
 
      points <- eventReactive(input$recalc, {
     
-    funda_webscrap(input$city, input$day)
+    #funda_webscrap(input$city, input$day)
     
   })
      points <- eventReactive(input$use_data, {
@@ -118,7 +120,7 @@ server <- function(input, output, session) {
   
   output$mymap <- renderLeaflet({ #This creates a maps of the city where the several points are marked
     
-    print_data <- modelled_dataset(points())
+    print_data <- map_data(points())
     
     
     icons <- awesomeIcons(
@@ -127,18 +129,31 @@ server <- function(input, output, session) {
       library = 'ion',
       markerColor = getColor(print_data)
     )
-    
+
     leaflet(print_data) %>%
       addProviderTiles(providers$Stamen.TonerLite,
                        options = providerTileOptions(noWrap = TRUE)
       ) %>%
-      addAwesomeMarkers(~lon, ~lat,icon = icons, popup = ~htmlEscape(`Asking price`) )
+      addAwesomeMarkers(~lon, ~lat,
+                        icon = icons,
+                        popup = ~htmlEscape(`SalePrice`))
   })
   
   # output$map <- renderUI(box(withSp
   # inner(leafletOutput("mymap"), type = 8), width = 15))
   
   output$table <- renderDataTable(points())
+  output$selection_data <- renderUI({
+    names_variable <- names(points())
+    selectizeInput("names_variable", "Choose variable", names_variable,
+                   multiple = T, selected = names_variable[1])
+  })
+  
+  
+  
+  output$table_model <- renderDataTable({
+    print(input$names_variable)
+    points()[, .SD, .SDcols = input$names_variable]})
 }
 
 shinyApp(ui, server)
