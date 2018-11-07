@@ -42,6 +42,7 @@ getColor <- function(x) {
 
 source("x - widget.R")
 source("m - modelling.R")
+source("m - simple model.R")
 #source("f - webscrap.R")
 
 
@@ -58,7 +59,8 @@ ui <- dashboardPage(
   dashboardHeader(title = "Home Price Project"),
   dashboardSidebar(sidebarMenu(menuItem("Table", tabName = "table", icon = icon("dashboard")),
                                menuItem("Maps", tabName = "maps", icon = icon("th")),
-                               menuItem("Variable Selection", tabName = "var"))),
+                               menuItem("Variable Selection", tabName = "var"),
+                               menuItem("Input House Characteristics", tabName = "model"))),
 
   
   dashboardBody(
@@ -88,11 +90,18 @@ ui <- dashboardPage(
                        withSpinner(dataTableOutput("table"), type = 8)
                      )),
       tabItem(tabName = "var",
-              fluidRow(uiOutput("selection_data"),
-              actionButton("run_model", "Run Model with selected variable")),
+              fluidRow(uiOutput("selection_data")),
               fluidRow(withSpinner(dataTableOutput("table_model"), type = 8))
              
              ),
+      tabItem(tabName = "model",
+             
+              fluidRow( column(uiOutput("variable_selection"), width = 6),
+                       column(
+                actionButton('run_model', 'Train Model'), 
+                width = 6),
+                verbatimTextOutput("summary"))
+              ),
       
 
              tabItem(tabName = "maps",
@@ -116,7 +125,7 @@ server <- function(input, output, session) {
        file <- input$upload
        fread(file$datapath)
      })
-  
+     
   
   output$mymap <- renderLeaflet({ #This creates a maps of the city where the several points are marked
     
@@ -147,13 +156,61 @@ server <- function(input, output, session) {
     names_variable <- names(points())
     selectizeInput("names_variable", "Choose variable", names_variable,
                    multiple = T, selected = names_variable[1])
+    
   })
   
   
+  inVars <- reactive({
+    unique(input$names_variable)
+  })
+
+  output$variable_selection <- renderUI({
+    pvars <- inVars()
+      
+      div(
+        lapply(pvars, function(i) {
+            if(class(points()[[i]]) %like%  'numeric|integer'){
+              numericInput(inputId = i,label = paste('Input ', i),
+                           value = 1)}else if(
+                class(points()[[i]]) == 'character'){
+                selectInput(inputId = i, label = paste('Input ', i),
+                            choices = points()[[i]] %>% unique()
+                            )
+            }
+        })
+      )
+
+  })
   
   output$table_model <- renderDataTable({
-    print(input$names_variable)
-    points()[, .SD, .SDcols = input$names_variable]})
+    #print(inVars())
+    if(is.null(inVars())){
+      print('No Variable Selection')
+    }else{
+      points()[, .SD, .SDcols = inVars()]  
+    }
+    
+  })
+  
+  
+  ## Running model
+  model_results <-  eventReactive(input$run_model, {
+    print('ciao')
+    print(inVars())
+    lm_results <- simple_model(points(), inVars(), 'SalePrice')
+    summary(lm_results)
+    return(lm_results)
+  })
+
+  
+
+  output$summary <- renderPrint({
+    summary(model_results())
+  })
+
+  
+
+  
 }
 
 shinyApp(ui, server)
