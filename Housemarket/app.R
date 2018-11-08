@@ -29,14 +29,20 @@ b <- gsub("\\s+", " ", a)
 return(b)}
 
 getColor <- function(x) {
-  sapply(x$residual, function(mag) {
-    if(mag < 0) {
-      "green"
-    } else if(mag == 0) {
-      "orange"
-    } else {
-      "red"
-    } })
+  x[,colors_sel := as.character(cut(residuals, quantile(residuals), include.lowest = T,
+                       labels = c('green', 'lightgreen', 
+                                  'lightred', 'red')))]
+ # print(quant_values)
+  return(x$colors_sel)
+
+  # sapply(x$residual, function(mag) {
+  #   if(mag < 0) {
+  #     "green"
+  #   } else if(mag == 0) {
+  #     "orange"
+  #   } else {
+  #     "red"
+  #   } })
 }
 
 
@@ -129,15 +135,16 @@ server <- function(input, output, session) {
   
   output$mymap <- renderLeaflet({ #This creates a maps of the city where the several points are marked
     
-    print_data <- map_data(points())
+    print_data <- map_data(data_for_map())
     
     
     icons <- awesomeIcons(
-      icon = 'ios-close',
+      icon = 'home',
       iconColor = 'black',
       library = 'ion',
       markerColor = getColor(print_data)
     )
+    print(getColor(print_data))
 
     leaflet(print_data) %>%
       addProviderTiles(providers$Stamen.TonerLite,
@@ -195,14 +202,22 @@ server <- function(input, output, session) {
   
   ## Running model
   model_results <-  eventReactive(input$run_model, {
-    print('ciao')
-    print(inVars())
+    
     lm_results <- simple_model(points(), inVars(), 'SalePrice')
     summary(lm_results)
     return(lm_results)
   })
 
   
+  data_for_map <- reactive({
+    errors_vector <- points()$SalePrice - predict(model_results())
+    dt <- points()[, .(SalePrice, lat, lon)]
+    dt$residuals <- errors_vector
+    print(errors_vector)
+    print(quantile(errors_vector))
+    return(dt)
+    
+  })
 
   output$summary <- renderPrint({
     summary(model_results())
