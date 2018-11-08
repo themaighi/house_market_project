@@ -2,8 +2,9 @@
 ## 
 
 
+
 modelled_dataset <- function(house){
-  h2o.init()
+  #h2o.init()
 house[,id := .I]
 
 ##recode askingprice  ##
@@ -64,4 +65,17 @@ output_house <- merge(house, model_house[,.(id,residual)], by = "id")
 return(output_house)
 h2o.shutdown()
 }
+
+
+map_data <- function(house){
+  
+  return(house)
+}
+
+## Linear model
+simple_model <- function(model_data , x, y){ #x <- 'c'; y <- 'd'
+  results_lm <- lm(as.formula(paste(y, ' ~ ',paste(x, collapse = ' + '))), model_data)
+  return(results_lm)
+}
+
 

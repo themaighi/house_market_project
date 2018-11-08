@@ -29,20 +29,28 @@ b <- gsub("\\s+", " ", a)
 return(b)}
 
 getColor <- function(x) {
-  sapply(x$residual, function(mag) {
-    if(mag < 0) {
-      "green"
-    } else if(mag == 0) {
-      "orange"
-    } else {
-      "red"
-    } })
+  x[,colors_sel := as.character(cut(residuals, quantile(residuals), include.lowest = T,
+                       labels = c('green', 'lightgreen', 
+                                  'lightred', 'red')))]
+ # print(quant_values)
+  return(x$colors_sel)
+
+  # sapply(x$residual, function(mag) {
+  #   if(mag < 0) {
+  #     "green"
+  #   } else if(mag == 0) {
+  #     "orange"
+  #   } else {
+  #     "red"
+  #   } })
 }
 
 
 source("x - widget.R")
 source("m - modelling.R")
-source("f - webscrap.R")
+source("m - simple model.R")
+#source("f - webscrap.R")
+
 
 ## Get the directory
 nl <- getwd()
@@ -55,20 +63,23 @@ names(r_colors) <- colors()
 
 ui <- dashboardPage(
   dashboardHeader(title = "Home Price Project"),
-  dashboardSidebar(sidebarMenu(menuItem("Maps", tabName = "maps", icon = icon("dashboard")),
-                               menuItem("Table", tabName = "table", icon = icon("th")),
-                               menuItem("Funda", tabName = "funda"))),
+  dashboardSidebar(sidebarMenu(menuItem("Table", tabName = "table", icon = icon("dashboard")),
+                               menuItem("Maps", tabName = "maps", icon = icon("th")),
+                               menuItem("Variable Selection", tabName = "var"),
+                               menuItem("Input House Characteristics", tabName = "model"))),
 
   
   dashboardBody(
     tabItems(
      
-      tabItem(tabName = "maps",
+      tabItem(tabName = "table",
                      fluidRow(
                    
                        box(
-                       radioButtons("import", "Select which type of data source:", 
-                                    choices = c("Webscrap", "File upload")),
+                         selectInput(
+                           "import", "Select which type of data source:",
+                           c(Webscrap = "Webscrap",
+                             UploadData = "File upload"),selected = c('UploadData')),
                        wellPanel(
                        conditionalPanel(condition = "input.import == 'Webscrap'",
                                         
@@ -82,19 +93,25 @@ ui <- dashboardPage(
                        actionButton("map_show", "Show points on the map")
                        ))),
                      fluidRow(
-                       withSpinner(leafletOutput(outputId = "mymap"), type = 8)
+                       withSpinner(dataTableOutput("table"), type = 8)
                      )),
-      tabItem(tabName = "funda", 
-             # source("w - widget.R")
-             # tags$iframe(src = "http://www.bbc.co.uk")
-             a <- HTML(readLines(
-               "https://www.funda.nl/en/koop/rotterdam/"
-             ))
+      tabItem(tabName = "var",
+              fluidRow(uiOutput("selection_data")),
+              fluidRow(withSpinner(dataTableOutput("table_model"), type = 8))
+             
              ),
-                      
+      tabItem(tabName = "model",
+             
+              fluidRow( column(uiOutput("variable_selection"), width = 6),
+                       column(
+                actionButton('run_model', 'Train Model'), 
+                width = 6),
+                verbatimTextOutput("summary"))
+              ),
+      
 
-             tabItem(tabName = "table",
-                        dataTableOutput("table")))
+             tabItem(tabName = "maps",
+                     leafletOutput(outputId = "mymap")))
  
   
 ))
@@ -107,38 +124,108 @@ server <- function(input, output, session) {
 
      points <- eventReactive(input$recalc, {
     
-    funda_webscrap(input$city, input$day)
+    #funda_webscrap(input$city, input$day)
     
   })
      points <- eventReactive(input$use_data, {
        file <- input$upload
        fread(file$datapath)
      })
-  
+     
   
   output$mymap <- renderLeaflet({ #This creates a maps of the city where the several points are marked
     
-    print_data <- modelled_dataset(points())
+    print_data <- map_data(data_for_map())
     
     
     icons <- awesomeIcons(
-      icon = 'ios-close',
+      icon = 'home',
       iconColor = 'black',
       library = 'ion',
       markerColor = getColor(print_data)
     )
-    
+    print(getColor(print_data))
+
     leaflet(print_data) %>%
       addProviderTiles(providers$Stamen.TonerLite,
                        options = providerTileOptions(noWrap = TRUE)
       ) %>%
-      addAwesomeMarkers(~lon, ~lat,icon = icons, popup = ~htmlEscape(`Asking price`) )
+      addAwesomeMarkers(~lon, ~lat,
+                        icon = icons,
+                        popup = ~htmlEscape(`SalePrice`))
   })
   
   # output$map <- renderUI(box(withSp
   # inner(leafletOutput("mymap"), type = 8), width = 15))
   
   output$table <- renderDataTable(points())
+  output$selection_data <- renderUI({
+    names_variable <- names(points())
+    selectizeInput("names_variable", "Choose variable", names_variable,
+                   multiple = T, selected = names_variable[1])
+    
+  })
+  
+  
+  inVars <- reactive({
+    unique(input$names_variable)
+  })
+
+  output$variable_selection <- renderUI({
+    pvars <- inVars()
+      
+      div(
+        lapply(pvars, function(i) {
+            if(class(points()[[i]]) %like%  'numeric|integer'){
+              numericInput(inputId = i,label = paste('Input ', i),
+                           value = 1)}else if(
+                class(points()[[i]]) == 'character'){
+                selectInput(inputId = i, label = paste('Input ', i),
+                            choices = points()[[i]] %>% unique()
+                            )
+            }
+        })
+      )
+
+  })
+  
+  output$table_model <- renderDataTable({
+    #print(inVars())
+    if(is.null(inVars())){
+      print('No Variable Selection')
+    }else{
+      points()[, .SD, .SDcols = inVars()]  
+    }
+    
+  })
+  
+  
+  ## Running model
+  model_results <-  eventReactive(input$run_model, {
+    
+    lm_results <- simple_model(points(), inVars(), 'SalePrice')
+    summary(lm_results)
+    return(lm_results)
+  })
+
+  
+  data_for_map <- reactive({
+    errors_vector <- points()$SalePrice - predict(model_results())
+    dt <- points()[, .(SalePrice, lat, lon)]
+    dt$residuals <- errors_vector
+    print(errors_vector)
+    print(quantile(errors_vector))
+    return(dt)
+    
+  })
+
+  output$summary <- renderPrint({
+    summary(model_results())
+  })
+
+  
+
+  
 }
 
 shinyApp(ui, server)
