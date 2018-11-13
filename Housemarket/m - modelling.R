@@ -74,7 +74,7 @@ map_data <- function(house){
 
 ## Linear model
 simple_model <- function(model_data , x, y){ #x <- 'c'; y <- 'd'
-  results_lm <- lm(as.formula(paste(y, ' ~ ',paste(x, collapse = ' + '))), model_data)
+  results_lm <- lm(as.formula(paste(y, ' ~ ',paste(x[x %in% names(model_data)], collapse = ' + '))), model_data)
   return(results_lm)
 }
 

@@ -103,7 +103,7 @@ ui <- dashboardPage(
                            )),
                          fluidRow(column(uiOutput("variable_selection"), width = 12))),
                 tabPanel('Analyze',
-                         fluidRow(column(6,selectInput('model_selection',
+                         fluidRow(column(4,selectInput('model_selection',
                                                      label = 'Select Model',
                                               choices = c('Default',
                                                           'Random Forest',
@@ -112,10 +112,13 @@ ui <- dashboardPage(
                                               )),
                                               column(
                                                 actionButton('run_model', 'Train Model'), 
-                                                width = 4)
+                                                width = 4),
+                                              column(4, 
+                                                     h4('Description model:'))
                                                 ),
                          tags$style(type='text/css', "#run_model { width:100%; margin-top: 25px;}"),
-                         fluidRow(column(12,verbatimTextOutput("summary")))),
+                         fluidRow(column(12,verbatimTextOutput("summary"))),
+                         fluidRow(uiOutput('results_model'))),
                 tabPanel('Map',leafletOutput(outputId = "mymap")),
                 tags$script("
     $('body').mouseover(function() {
@@ -229,10 +232,13 @@ server <- function(input, output, session) {
                        value = 1)),
           column(6, p(paste0('Description ', i, ':'))))
           }else if(
-                         class(points()[[i]]) == 'character'){
+                         class(points()[[i]]) %like% 'character|factor'){
+                        points()[,c(i) := lapply(.SD, function(x){
+                          ifelse(is.na(x), 'Undefined', x)
+                        }), .SDcols = c(i)]
                          fluidRow(
                          column(6, selectInput(inputId = i, label = paste('Input ', i),
-                                     choices = points()[[i]] %>% unique())),
+                                     choices = c(points()[[i]] %>% unique(), 'Other'))),
                          column(6, p(paste0('Description ', i, ':')))
                          
                          )
@@ -242,12 +248,27 @@ server <- function(input, output, session) {
     
   })
  
+  dataset_model <- reactive({
+    dt <- copy(points())
+    
+    for (i in inVars()){
+      if(input[[i]] == 'Other'){
+      dt[, c(i) := NULL]  
+      }else{
+        #dt[,c(i) := lapply(.SD, as.factor), .SDcols = i]
+      }
+
+      
+    }
+    return(dt)
+    
+    })
 
   
   
   ## Running model
   model_results <-  eventReactive(input$run_model, {
-    lm_results <- simple_model(points(), inVars(), 'SalePrice')
+    lm_results <- simple_model(dataset_model(), inVars(), 'SalePrice')
     summary(lm_results)
     return(lm_results)
   })
@@ -264,6 +285,20 @@ server <- function(input, output, session) {
   output$summary <- renderPrint({
     summary(model_results())
   })
+  
+  
+  ## Mispricing information
+  
+  output$results_model <- renderUI({
+    fluidRow(box(
+                 h3('Price set : 150000'),
+                 h3('Price forcasted : 160000'),
+                 h2('Good Opportunity')),
+             box(h3('Most positive things:'),
+                 h3('Most negative things:'))
+             )
+  })
+  
   
   output$Next_Previous=renderUI({
     tab_list=input$List_of_tab[-length(input$List_of_tab)]
