@@ -119,7 +119,9 @@ ui <- dashboardPage(
                          tags$style(type='text/css', "#run_model { width:100%; margin-top: 25px;}"),
                          fluidRow(column(12,verbatimTextOutput("summary"))),
                          fluidRow(uiOutput('results_model'))),
-                tabPanel('Map',leafletOutput(outputId = "mymap")),
+                tabPanel('Map',fluidRow(box(leafletOutput(outputId = "mymap")),
+                                  box(style = "overflow-y:scroll; max-height: 600px",
+                                      uiOutput("variable_selection_map")))),
                 tags$script("
     $('body').mouseover(function() {
     list_tabs=[];
@@ -216,6 +218,22 @@ server <- function(input, output, session) {
     
   })
   
+  selection_data_table <- reactive({
+    dt <- copy(points())
+    names_var <- sapply(dt, class)[sapply(dt, class) %like% 'factor|character']
+    dt[,c(names(names_var)) := lapply(.SD, function(x){
+      as.character(x)
+    }), .SDcols = names(names_var)]
+    dt[,c(names(names_var)) := lapply(.SD, function(x){
+      ifelse(is.na(x), 'Undefined', x)
+    }), .SDcols = names(names_var)]
+    dt[,c(names(names_var)) := lapply(.SD, function(x){
+      factor(as.character(x), levels = unique(x))
+    }), .SDcols = names(names_var)]
+    return(dt)
+    
+  })
+  
   
   inVars <- reactive({
     unique(input$names_variable)
@@ -226,19 +244,18 @@ server <- function(input, output, session) {
     
     div(
       lapply(pvars, function(i) {
-        if(class(points()[[i]]) %like%  'numeric|integer'){
+        if(class(selection_data_table()[[i]]) %like%  'numeric|integer'){
          fluidRow(
            column(6,numericInput(inputId = i,label = paste('Input ', i),
                        value = 1)),
           column(6, p(paste0('Description ', i, ':'))))
           }else if(
-                         class(points()[[i]]) %like% 'character|factor'){
-                        points()[,c(i) := lapply(.SD, function(x){
-                          ifelse(is.na(x), 'Undefined', x)
-                        }), .SDcols = c(i)]
+                         class(selection_data_table()[[i]]) %like% 'character|factor'){
+                        
+                        #points()[,c(i) := lapply(.SD, as.factor), .SDcols = c(i)]
                          fluidRow(
                          column(6, selectInput(inputId = i, label = paste('Input ', i),
-                                     choices = c(points()[[i]] %>% unique(), 'Other'))),
+                                     choices = c(selection_data_table()[[i]] %>% levels(), 'Other'))),
                          column(6, p(paste0('Description ', i, ':')))
                          
                          )
@@ -249,7 +266,7 @@ server <- function(input, output, session) {
   })
  
   dataset_model <- reactive({
-    dt <- copy(points())
+    dt <- copy(selection_data_table())
     
     for (i in inVars()){
       if(input[[i]] == 'Other'){
@@ -275,7 +292,9 @@ server <- function(input, output, session) {
   
   
   data_for_map <- reactive({
-    errors_vector <- points()$SalePrice - predict(model_results())
+    print(length(dataset_model()$SalePrice))
+    print(length(predict(model_results())))
+    errors_vector <- dataset_model()$SalePrice - predict(model_results())
     dt <- points()[, .(SalePrice, lat, lon)]
     dt$residuals <- errors_vector
     return(dt)
@@ -284,6 +303,37 @@ server <- function(input, output, session) {
   
   output$summary <- renderPrint({
     summary(model_results())
+  })
+  
+  ## Selection in the map
+  
+  output$variable_selection_map <- renderUI({
+    pvars <- names(points())
+    
+    div(
+      lapply(pvars, function(i) {
+      
+        if(class(points()[[i]]) %like%  'numeric|integer'){
+          fluidRow(
+            column(6,sliderInput(inputId = paste('maps_',i),label = paste('Input ', i),
+                                  min = min(points()[[i]]), max = max(points()[[i]]),
+                                 value = c(min(points()[[i]]), max(points()[[i]])))))
+            
+        }else if(
+          class(points()[[i]]) %like% 'character|factor'){
+          
+          #points()[,c(i) := lapply(.SD, as.factor), .SDcols = c(i)]
+          fluidRow(
+            column(6, selectizeInput(inputId = i, label = paste('Input ', i),
+                                  choices = c(points()[[i]] %>% unique()),
+                                  multiple = T))
+          )
+            
+          
+        }
+      })
+    )
+    
   })
   
   
