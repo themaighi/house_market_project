@@ -246,12 +246,25 @@ server <- function(input, output, session) {
       lapply(pvars, function(i) {
         if(class(selection_data_table()[[i]]) %like%  'numeric|integer'){
          fluidRow(
-           column(6,numericInput(inputId = i,label = paste('Input ', i),
-                       value = 1)),
+           
+           column(6,
+                  if(sum(is.na(selection_data_table()[[i]])) == 0){
+                  numericInput(inputId = i,label = paste('Input ', i),
+                       value = 1)}else{
+                         selection_data_table()[,c(i) := lapply(.SD, function(x){
+                           breaks_step <- unique(quantile(x, na.rm = T))
+                           cut(x, breaks_step, include.lowest = T)
+                           }), .SDcols = i]
+                         selection_data_table()[is.na(get(i)),c(i) := 'Undefined']
+                          selectInput(inputId = i, label = paste('Input ', i),
+                                               choices = c(selection_data_table()[[i]] %>% levels()))
+                         
+                       }),
           column(6, p(paste0('Description ', i, ':'))))
+          
           }else if(
                          class(selection_data_table()[[i]]) %like% 'character|factor'){
-                        
+            
                         #points()[,c(i) := lapply(.SD, as.factor), .SDcols = c(i)]
                          fluidRow(
                          column(6, selectInput(inputId = i, label = paste('Input ', i),
@@ -260,7 +273,9 @@ server <- function(input, output, session) {
                          
                          )
                        }
-      })
+        }
+      
+      )
     )
     
   })
@@ -277,6 +292,7 @@ server <- function(input, output, session) {
 
       
     }
+
     return(dt)
     
     })
@@ -316,8 +332,8 @@ server <- function(input, output, session) {
         if(class(points()[[i]]) %like%  'numeric|integer'){
           fluidRow(
             column(6,sliderInput(inputId = paste('maps_',i),label = paste('Input ', i),
-                                  min = min(points()[[i]]), max = max(points()[[i]]),
-                                 value = c(min(points()[[i]]), max(points()[[i]])))))
+                                  min = min(points()[[i]], na.rm = T), max = max(points()[[i]], na.rm = T),
+                                 value = c(min(points()[[i]], na.rm = T), max(points()[[i]], na.rm = T)))))
             
         }else if(
           class(points()[[i]]) %like% 'character|factor'){
