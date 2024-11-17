@@ -40,7 +40,6 @@ This project is not maintained and was never finished due to Funda not allowing 
 
 ## Dashboard Preview
 
-
-![plot](HousePrice - Demo.png)
+<img width="1512" alt="HousePrice - Demo" src="https://github.com/user-attachments/assets/4eeb039e-4c88-4940-8533-d39424dfb706">
 
 
