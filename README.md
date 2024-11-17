@@ -41,6 +41,6 @@ This project is not maintained and was never finished due to Funda not allowing 
 ## Dashboard Preview
 
 
-![House Market Dashboard](HousePrice-Demo.png)
+![plot](HousePrice - Demo.png)
 
 
