@@ -21,6 +21,7 @@ library(shinycssloaders)
 library(htmltools)
 library(h2o)
 library(curl)
+library(randomForest)
 # Function ----------------------------------------------------------------
 
 
@@ -82,7 +83,7 @@ ui <- dashboardPage(
                        actionButton("map_show", "Show points on the map")
                        ))),
                      fluidRow(
-                       withSpinner(leafletOutput(outputId = "mymap"), type = 8)
+                       leafletOutput(outputId = "mymap")
                      )),
       tabItem(tabName = "funda", 
              # source("w - widget.R")
@@ -119,24 +120,19 @@ server <- function(input, output, session) {
   output$mymap <- renderLeaflet({ #This creates a maps of the city where the several points are marked
     
     print_data <- modelled_dataset(points())
-    
-    
+
     icons <- awesomeIcons(
       icon = 'ios-close',
       iconColor = 'black',
       library = 'ion',
       markerColor = getColor(print_data)
     )
-    
-    leaflet(print_data) %>%
-      addProviderTiles(providers$Stamen.TonerLite,
-                       options = providerTileOptions(noWrap = TRUE)
-      ) %>%
-      addAwesomeMarkers(~lon, ~lat,icon = icons, popup = ~htmlEscape(`Asking price`) )
+    # Create the map
+    print(print_data)
+      leaflet(print_data) %>% addTiles() %>%
+        addCircleMarkers(~lon, ~lat, label=~as.character(`Asking price`),color = getColor(print_data))
   })
   
-  # output$map <- renderUI(box(withSp
-  # inner(leafletOutput("mymap"), type = 8), width = 15))
   
   output$table <- renderDataTable(points())
 }

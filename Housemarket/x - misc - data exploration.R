@@ -5,8 +5,32 @@
 
 
 org_list<-ls()
-houseprice_data <- fread("Housemarket/data/kaggle_house_training_data.csv")
+houseprice_data <- fread("Housemarket/data/mockup_dt.csv")
 
+model_house <- houseprice_data[!is.na(`Asking price`),.SD,.SDcols = c(#"Accessibility",
+  #"Acceptance",
+  "Asking price",
+  #"Back garden",
+  #"Building insurance",
+  #"Bathroom facilities",
+  #"Energy label",
+  #"Living area",
+  #"Kind of house",
+  #"Location",
+  #"Number of bath rooms",
+  #"Number of rooms",
+  #"id",
+  "LotArea",
+  "YearBuilt",
+  "SaleCondition")]
+
+model_house[,y_price := `Asking price`]
+model_house[, `Asking price`:= NULL]
+model.frame <- as.data.table(model_house)
+rf_model = randomForest(y_price ~ ., data=model.frame)
+prediction <- predict(rf_model, model.frame)
+model_house[,residual := y_price - prediction]
+output_house <- merge(houseprice_data, model_house[,.(id,residual)], by = "id")
 ## Define function 
 
 names_like <- function(input, pattern){#input <- sapply(houseprice_data, class) %>% names(.);pattern <- "x_"
