@@ -1,7 +1,7 @@
 
 # House Market Analysis Dashboard
 
-### Author: [Your Name]
+### Author: Michele Cavazza
 
 ## Overview
 
