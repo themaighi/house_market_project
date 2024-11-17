@@ -40,7 +40,7 @@ This project is not maintained and was never finished due to Funda not allowing 
 
 ## Dashboard Preview
 
-```markdown
+
 ![House Market Dashboard](HousePrice-Demo.png)
-```
+
 
